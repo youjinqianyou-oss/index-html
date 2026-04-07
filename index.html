@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>進階待辦清單</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f4f4;
+    display: flex;
+    justify-content: center;
+    margin-top: 50px;
+    transition: 0.3s;
+}
+
+.dark {
+    background: #1e1e1e;
+    color: white;
+}
+
+.container {
+    background: white;
+    padding: 20px;
+    width: 320px;
+    border-radius: 15px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    transition: 0.3s;
+}
+
+.dark .container {
+    background: #2c2c2c;
+}
+
+h1 {
+    text-align: center;
+}
+
+.input-section {
+    display: flex;
+    gap: 10px;
+}
+
+input {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+}
+
+button {
+    padding: 10px;
+    cursor: pointer;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 8px;
+}
+
+button:hover {
+    opacity: 0.8;
+}
+
+ul {
+    list-style: none;
+    padding: 0;
+    margin-top: 20px;
+}
+
+li {
+    padding: 10px;
+    background: #eee;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    border-radius: 8px;
+    align-items: center;
+    transition: 0.2s;
+}
+
+.dark li {
+    background: #444;
+}
+
+.completed {
+    text-decoration: line-through;
+    opacity: 0.6;
+}
+
+.delete-btn {
+    background: red;
+    border: none;
+    color: white;
+    padding: 5px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.toggle-btn {
+    background: #333;
+}
+
+.dark .toggle-btn {
+    background: #ddd;
+    color: black;
+}
+</style>
+
+</head>
+<body>
+
+<div class="container">
+    <div class="top-bar">
+        <h1>待辦</h1>
+        <button class="toggle-btn" onclick="toggleDark()">🌙</button>
+    </div>
+
+    <div class="input-section">
+        <input type="text" id="taskInput" placeholder="輸入任務..." onkeypress="handleKey(event)">
+        <button onclick="addTask()">新增</button>
+    </div>
+
+    <ul id="taskList"></ul>
+</div>
+
+<script>
+let tasks = JSON.parse(localStorage.getItem("tasks")) || [];
+
+function saveTasks() {
+    localStorage.setItem("tasks", JSON.stringify(tasks));
+}
+
+function renderTasks() {
+    const list = document.getElementById("taskList");
+    list.innerHTML = "";
+
+    tasks.forEach((task, index) => {
+        const li = document.createElement("li");
+
+        li.innerHTML = `
+            <span onclick="toggleComplete(${index})" class="${task.done ? 'completed' : ''}">
+                ${task.text}
+            </span>
+            <button class="delete-btn" onclick="deleteTask(${index})">X</button>
+        `;
+
+        list.appendChild(li);
+    });
+}
+
+function addTask() {
+    const input = document.getElementById("taskInput");
+    const text = input.value.trim();
+
+    if (!text) return;
+
+    tasks.push({ text, done: false });
+    input.value = "";
+
+    saveTasks();
+    renderTasks();
+}
+
+function deleteTask(index) {
+    tasks.splice(index, 1);
+    saveTasks();
+    renderTasks();
+}
+
+function toggleComplete(index) {
+    tasks[index].done = !tasks[index].done;
+    saveTasks();
+    renderTasks();
+}
+
+function handleKey(e) {
+    if (e.key === "Enter") addTask();
+}
+
+function toggleDark() {
+    document.body.classList.toggle("dark");
+    localStorage.setItem("darkMode", document.body.classList.contains("dark"));
+}
+
+// 初始化
+if (localStorage.getItem("darkMode") === "true") {
+    document.body.classList.add("dark");
+}
+
+renderTasks();
+</script>
+
+</body>
+</html>
