@@ -2,13 +2,13 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<title>極速躲避 + 全球排行榜</title>
+<title>極速躲避 Ultimate + 排行榜</title>
 <style>
-body { margin:0; background:black; color:white; font-family:Arial; text-align:center; overflow:hidden; }
-canvas { display:block; margin:0 auto; background:#111; border-radius:10px; }
-#ui { margin:10px; font-size:18px; }
-#leaderboard { text-align:left; width:400px; margin:10px auto; background:#222; padding:10px; border-radius:8px; }
-input, button { padding:5px 10px; margin:5px; border-radius:5px; border:none; }
+body {margin:0; background:black; color:white; font-family:Arial; text-align:center; overflow:hidden;}
+canvas {display:block; margin:0 auto; background:#111; border-radius:10px;}
+#ui {margin:10px; font-size:18px;}
+#leaderboard {text-align:left; width:400px; margin:10px auto; background:#222; padding:10px; border-radius:8px; white-space:pre-line;}
+input, button {padding:5px 10px; margin:5px; border-radius:5px; border:none;}
 </style>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -42,24 +42,11 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const scoresRef = db.ref("scores");
 
-// --- 遊戲基本設定 ---
+// --- 遊戲設定 ---
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-let player, obstacles, particles, keys, score, hp, speed, gameOver;
+let player, obstacles, particles, keys, score, hp, speed, gameOver, lastHitTime;
 let playerName = "";
-
-function startGame(){
-    const nameInput = document.getElementById("playerName").value.trim();
-    if(!nameInput){ alert("請輸入名字！"); return; }
-    playerName = nameInput;
-    document.getElementById("playerNameDiv").style.display="none";
-
-    player={x:180,y:520,w:40,h:40,speed:8};
-    obstacles=[]; particles=[]; keys={}; score=0; hp=3; speed=3; gameOver=false;
-
-    requestAnimationFrame(loop);
-    setInterval(spawnObstacle,500);
-}
 
 // --- 音效 ---
 const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
@@ -67,8 +54,7 @@ function beep(freq,duration){
     const osc=audioCtx.createOscillator();
     const gain=audioCtx.createGain();
     osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.frequency.value=freq;
-    osc.start();
+    osc.frequency.value=freq; osc.start();
     gain.gain.setValueAtTime(0.1,audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+duration);
     osc.stop(audioCtx.currentTime+duration);
@@ -83,13 +69,27 @@ canvas.addEventListener("touchstart",e=>touchX=e.touches[0].clientX);
 canvas.addEventListener("touchmove",e=>touchX=e.touches[0].clientX);
 canvas.addEventListener("touchend",e=>touchX=null);
 
+// --- 開始遊戲 ---
+function startGame(){
+    const nameInput = document.getElementById("playerName").value.trim();
+    if(!nameInput){ alert("請輸入名字！"); return; }
+    playerName = nameInput;
+    document.getElementById("playerNameDiv").style.display="none";
+
+    player={x:180,y:520,w:40,h:40,speed:8};
+    obstacles=[]; particles=[]; keys={}; score=0; hp=3; speed=3; gameOver=false; lastHitTime=0;
+
+    requestAnimationFrame(loop);
+    setInterval(spawnObstacle,500);
+}
+
 // --- 障礙 ---
 function spawnObstacle(){
     let size=Math.random()*30+20;
     obstacles.push({x:Math.random()*(canvas.width-size),y:-size,w:size,h:size});
 }
 
-// --- 粒子爆炸 ---
+// --- 粒子 ---
 function createParticles(x,y,color){
     for(let i=0;i<15;i++){
         particles.push({x:x,y:y,vx:(Math.random()-0.5)*6,vy:(Math.random()-0.5)*6,alpha:1,color:color});
@@ -102,18 +102,27 @@ function update(){
 
     if(keys["ArrowLeft"]&&player.x>0) player.x-=player.speed;
     if(keys["ArrowRight"]&&player.x<canvas.width-player.w) player.x+=player.speed;
-    if(touchX!==null){ let target=touchX-canvas.getBoundingClientRect().left-player.w/2; if(target>player.x) player.x+=player.speed; else if(target<player.x) player.x-=player.speed; }
+    if(touchX!==null){
+        let target=touchX-canvas.getBoundingClientRect().left-player.w/2;
+        if(target>player.x) player.x+=player.speed;
+        else if(target<player.x) player.x-=player.speed;
+    }
 
-    obstacles.forEach((o,i)=>{
+    obstacles.forEach((o)=>{
         o.y+=speed;
+        // --- 防連續扣血 ---
         if(player.x<o.x+o.w && player.x+player.w>o.x && player.y<o.y+o.h && player.y+player.h>o.y){
-            hp--; beep(80,0.2); createParticles(player.x+player.w/2,player.y+player.h/2,"#ff4444"); o.y=canvas.height+100;
-            if(hp<=0){ gameOver=true; submitScore(); }
+            let now=Date.now();
+            if(now-lastHitTime>300){ // 0.3秒免疫
+                hp--; beep(80,0.2); createParticles(player.x+player.w/2,player.y+player.h/2,"#ff4444");
+                lastHitTime=now;
+                if(hp<=0){ gameOver=true; submitScore(); }
+            }
         }
     });
     obstacles=obstacles.filter(o=>o.y<canvas.height);
 
-    particles.forEach((p,i)=>{p.x+=p.vx;p.y+=p.vy;p.alpha-=0.03;});
+    particles.forEach((p)=>{p.x+=p.vx;p.y+=p.vy;p.alpha-=0.03;});
     particles=particles.filter(p=>p.alpha>0);
 
     score++; if(score%50===0) speed+=0.5;
@@ -131,7 +140,7 @@ function draw(){
 // --- 循環 ---
 function loop(){ update(); draw(); if(!gameOver) requestAnimationFrame(loop); }
 
-// --- 提交分數到 Firebase ---
+// --- 提交分數 ---
 function submitScore(){
     scoresRef.push({name:playerName,score:score,time:Date.now()});
     setTimeout(()=>loadLeaderboard(),200);
