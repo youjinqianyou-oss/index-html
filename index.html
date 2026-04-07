@@ -2,92 +2,97 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<title>極速躲避最終版</title>
-
+<title>極速躲避 + 全球排行榜</title>
 <style>
-body {
-    margin: 0;
-    background: black;
-    color: white;
-    font-family: Arial;
-    text-align: center;
-    overflow: hidden;
-}
-canvas {
-    display: block;
-    margin: 0 auto;
-    background: #111;
-    border-radius: 10px;
-}
-#ui {
-    margin: 10px;
-    font-size: 18px;
-}
+body { margin:0; background:black; color:white; font-family:Arial; text-align:center; overflow:hidden; }
+canvas { display:block; margin:0 auto; background:#111; border-radius:10px; }
+#ui { margin:10px; font-size:18px; }
+#leaderboard { text-align:left; width:400px; margin:10px auto; background:#222; padding:10px; border-radius:8px; }
+input, button { padding:5px 10px; margin:5px; border-radius:5px; border:none; }
 </style>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
 <body>
 
-<h1>⚡ 極速躲避 Ultimate ⚡</h1>
+<h1>⚡ 極速躲避 Ultimate 🌎</h1>
 <div id="ui">分數: 0 ｜ ❤️ 3</div>
 <canvas id="game" width="400" height="600"></canvas>
 
+<div id="playerNameDiv">
+    名字: <input type="text" id="playerName" placeholder="輸入名字">
+    <button onclick="startGame()">開始遊戲</button>
+</div>
+
+<h2>全球排行榜</h2>
+<div id="leaderboard">載入中...</div>
+
 <script>
-// --- 基本設定 ---
+// --- Firebase 設定 ---
+const firebaseConfig = {
+  apiKey: "YOUR_FIREBASE_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "SENDER_ID",
+  appId: "APP_ID"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const scoresRef = db.ref("scores");
+
+// --- 遊戲基本設定 ---
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+let player, obstacles, particles, keys, score, hp, speed, gameOver;
+let playerName = "";
 
-let player = { x: 180, y: 520, w: 40, h: 40, speed: 8 };
-let obstacles = [];
-let particles = [];
-let keys = {};
-let score = 0;
-let hp = 3;
-let speed = 3;
-let gameOver = false;
+function startGame(){
+    const nameInput = document.getElementById("playerName").value.trim();
+    if(!nameInput){ alert("請輸入名字！"); return; }
+    playerName = nameInput;
+    document.getElementById("playerNameDiv").style.display="none";
+
+    player={x:180,y:520,w:40,h:40,speed:8};
+    obstacles=[]; particles=[]; keys={}; score=0; hp=3; speed=3; gameOver=false;
+
+    requestAnimationFrame(loop);
+    setInterval(spawnObstacle,500);
+}
 
 // --- 音效 ---
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-function beep(freq, duration) {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.frequency.value = freq;
+const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+function beep(freq,duration){
+    const osc=audioCtx.createOscillator();
+    const gain=audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.value=freq;
     osc.start();
-    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-    osc.stop(audioCtx.currentTime + duration);
+    gain.gain.setValueAtTime(0.1,audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+duration);
+    osc.stop(audioCtx.currentTime+duration);
 }
 setInterval(()=>{if(!gameOver) beep(200+Math.random()*200,0.05)},150);
 
 // --- 控制 ---
-document.addEventListener("keydown", e=>keys[e.key]=true);
-document.addEventListener("keyup", e=>keys[e.key]=false);
-
-// --- 手機觸控 ---
+document.addEventListener("keydown",e=>keys[e.key]=true);
+document.addEventListener("keyup",e=>keys[e.key]=false);
 let touchX = null;
-canvas.addEventListener("touchstart", e=>touchX=e.touches[0].clientX);
-canvas.addEventListener("touchmove", e=>{touchX=e.touches[0].clientX});
-canvas.addEventListener("touchend", e=>touchX=null);
+canvas.addEventListener("touchstart",e=>touchX=e.touches[0].clientX);
+canvas.addEventListener("touchmove",e=>touchX=e.touches[0].clientX);
+canvas.addEventListener("touchend",e=>touchX=null);
 
-// --- 生成障礙 ---
+// --- 障礙 ---
 function spawnObstacle(){
     let size=Math.random()*30+20;
     obstacles.push({x:Math.random()*(canvas.width-size),y:-size,w:size,h:size});
 }
-setInterval(spawnObstacle,500);
 
 // --- 粒子爆炸 ---
 function createParticles(x,y,color){
     for(let i=0;i<15;i++){
-        particles.push({
-            x:x,
-            y:y,
-            vx:(Math.random()-0.5)*6,
-            vy:(Math.random()-0.5)*6,
-            alpha:1,
-            color:color
-        });
+        particles.push({x:x,y:y,vx:(Math.random()-0.5)*6,vy:(Math.random()-0.5)*6,alpha:1,color:color});
     }
 }
 
@@ -95,78 +100,52 @@ function createParticles(x,y,color){
 function update(){
     if(gameOver) return;
 
-    // 玩家移動
-    if(keys["ArrowLeft"] && player.x>0) player.x-=player.speed;
-    if(keys["ArrowRight"] && player.x<canvas.width-player.w) player.x+=player.speed;
-    if(touchX!==null){
-        let target = touchX - canvas.getBoundingClientRect().left - player.w/2;
-        if(target>player.x) player.x+=player.speed;
-        else if(target<player.x) player.x-=player.speed;
-    }
+    if(keys["ArrowLeft"]&&player.x>0) player.x-=player.speed;
+    if(keys["ArrowRight"]&&player.x<canvas.width-player.w) player.x+=player.speed;
+    if(touchX!==null){ let target=touchX-canvas.getBoundingClientRect().left-player.w/2; if(target>player.x) player.x+=player.speed; else if(target<player.x) player.x-=player.speed; }
 
-    // 障礙更新
     obstacles.forEach((o,i)=>{
         o.y+=speed;
-        // 碰撞
         if(player.x<o.x+o.w && player.x+player.w>o.x && player.y<o.y+o.h && player.y+player.h>o.y){
-            hp--;
-            beep(80,0.2);
-            createParticles(player.x+player.w/2,player.y+player.h/2,"#ff4444");
-            o.y = canvas.height+100;
-            if(hp<=0){
-                gameOver=true;
-                setTimeout(()=>{alert("💀 遊戲結束！分數: "+score);location.reload();},100);
-            }
+            hp--; beep(80,0.2); createParticles(player.x+player.w/2,player.y+player.h/2,"#ff4444"); o.y=canvas.height+100;
+            if(hp<=0){ gameOver=true; submitScore(); }
         }
     });
-    obstacles = obstacles.filter(o=>o.y<canvas.height);
+    obstacles=obstacles.filter(o=>o.y<canvas.height);
 
-    // 粒子更新
-    particles.forEach((p,i)=>{
-        p.x+=p.vx;
-        p.y+=p.vy;
-        p.alpha-=0.03;
-    });
-    particles = particles.filter(p=>p.alpha>0);
+    particles.forEach((p,i)=>{p.x+=p.vx;p.y+=p.vy;p.alpha-=0.03;});
+    particles=particles.filter(p=>p.alpha>0);
 
-    // 分數 & 難度
-    score++;
-    if(score%50===0) speed+=0.5;
-
+    score++; if(score%50===0) speed+=0.5;
     document.getElementById("ui").innerText="分數: "+score+" ｜ ❤️ "+hp;
 }
 
 // --- 繪製 ---
 function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="#00ffcc"; ctx.shadowBlur=15; ctx.shadowColor="#00ffcc"; ctx.fillRect(player.x,player.y,player.w,player.h); ctx.shadowBlur=0;
+    ctx.fillStyle="#ff3333"; obstacles.forEach(o=>ctx.fillRect(o.x,o.y,o.w,o.h));
+    particles.forEach(p=>{ctx.globalAlpha=p.alpha; ctx.fillStyle=p.color; ctx.fillRect(p.x,p.y,4,4); ctx.globalAlpha=1;});
+}
 
-    // 玩家發光
-    ctx.fillStyle="#00ffcc";
-    ctx.shadowBlur=15;
-    ctx.shadowColor="#00ffcc";
-    ctx.fillRect(player.x,player.y,player.w,player.h);
-    ctx.shadowBlur=0;
+// --- 循環 ---
+function loop(){ update(); draw(); if(!gameOver) requestAnimationFrame(loop); }
 
-    // 障礙
-    ctx.fillStyle="#ff3333";
-    obstacles.forEach(o=>ctx.fillRect(o.x,o.y,o.w,o.h));
+// --- 提交分數到 Firebase ---
+function submitScore(){
+    scoresRef.push({name:playerName,score:score,time:Date.now()});
+    setTimeout(()=>loadLeaderboard(),200);
+}
 
-    // 粒子
-    particles.forEach(p=>{
-        ctx.globalAlpha=p.alpha;
-        ctx.fillStyle=p.color;
-        ctx.fillRect(p.x,p.y,4,4);
-        ctx.globalAlpha=1;
+// --- 載入排行榜 ---
+function loadLeaderboard(){
+    scoresRef.orderByChild("score").limitToLast(10).once("value",snapshot=>{
+        let data=[]; snapshot.forEach(s=>data.push(s.val()));
+        data.sort((a,b)=>b.score-a.score);
+        document.getElementById("leaderboard").innerText=data.map((d,i)=>`${i+1}. ${d.name} : ${d.score}`).join("\n");
     });
 }
-
-// --- 主循環 ---
-function loop(){
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
-loop();
+loadLeaderboard();
 </script>
 </body>
 </html>
